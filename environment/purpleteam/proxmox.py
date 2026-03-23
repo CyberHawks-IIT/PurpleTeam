@@ -125,6 +125,59 @@ def set_ct_net0(proxmox: ProxmoxAPI, node: str, vmid: int, bridge: str) -> None:
     proxmox.nodes(node).lxc(vmid).config.put(net0=f"name=eth0,bridge={bridge},ip=dhcp")
 
 
+# ---------------------------------------------------------------------------
+# Cloud-init configuration
+# ---------------------------------------------------------------------------
+
+def apply_cloudinit_vm(
+    proxmox: ProxmoxAPI,
+    node: str,
+    vmid: int,
+    *,
+    ciuser: str = None,
+    cipassword: str = None,
+    ipconfig0: str = "ip=dhcp",
+    nameserver: str = None,
+    searchdomain: str = None,
+    sshkeys: str = None,
+) -> None:
+    """
+    Apply Proxmox cloud-init settings to a QEMU VM.
+    ipconfig0 maps to net0; defaults to DHCP.
+    sshkeys should be the raw public key string (will be URL-encoded).
+    """
+    import urllib.parse
+    params = {"ipconfig0": ipconfig0}
+    if ciuser:      params["ciuser"]      = ciuser
+    if cipassword:  params["cipassword"]  = cipassword
+    if nameserver:  params["nameserver"]  = nameserver
+    if searchdomain: params["searchdomain"] = searchdomain
+    if sshkeys:     params["sshkeys"]     = urllib.parse.quote(sshkeys, safe="")
+    proxmox.nodes(node).qemu(vmid).config.put(**params)
+
+
+def apply_cloudinit_ct(
+    proxmox: ProxmoxAPI,
+    node: str,
+    vmid: int,
+    *,
+    password: str = None,
+    nameserver: str = None,
+    searchdomain: str = None,
+) -> None:
+    """
+    Apply cloud-init-equivalent settings to an LXC container.
+    LXC does not support ciuser/sshkeys via the Proxmox cloud-init API;
+    those must be configured inside the container at the OS level.
+    """
+    params = {}
+    if password:     params["password"]     = password
+    if nameserver:   params["nameserver"]   = nameserver
+    if searchdomain: params["searchdomain"] = searchdomain
+    if params:
+        proxmox.nodes(node).lxc(vmid).config.put(**params)
+
+
 def next_free_net_slot(proxmox: ProxmoxAPI, node: str, vmid: int) -> int:
     """Return the index of the first unused netN slot (0–31) on a VM."""
     cfg = proxmox.nodes(node).qemu(vmid).config.get()

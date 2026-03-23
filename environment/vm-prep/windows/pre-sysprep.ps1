@@ -1,14 +1,17 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    Pre-Sysprep script – prepares a Windows 11 image for Ansible management.
+    Pre-Sysprep script – prepares a Windows 11 image for Proxmox cloud-init and Ansible.
 .DESCRIPTION
     Run this BEFORE sysprep /generalize. It:
       1. Enables and configures WinRM for Ansible connectivity
       2. Configures PowerShell remoting
       3. Opens firewall rules for WinRM
       4. Sets execution policy for Ansible scripts
-      5. Cleans temp/log artifacts so the captured image is lean
+      5. Installs OpenSSH Server
+      6. Installs cloudbase-init (reads Proxmox cloud-init drive on first boot
+         to configure user, password, IP, DNS, and SSH keys per clone)
+      7. Cleans temp/log artifacts so the captured image is lean
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -90,7 +93,31 @@ if ($sshCapability.State -ne 'Installed') {
     Write-Host "  OpenSSH Server already installed." -ForegroundColor Yellow
 }
 
-# ─── 6. Cleanup temp files / logs ──────────────────────────────────────────
+# ─── 6. Install cloudbase-init ─────────────────────────────────────────────
+Write-Step "Installing cloudbase-init (Proxmox cloud-init support for Windows)"
+
+$cbInitMsi  = "$env:TEMP\CloudbaseInitSetup.msi"
+$cbInitUrl  = "https://cloudbase.it/downloads/CloudbaseInitSetup_Stable_x64.msi"
+
+Write-Host "  Downloading cloudbase-init..."
+Invoke-WebRequest -Uri $cbInitUrl -OutFile $cbInitMsi -UseBasicParsing
+
+Write-Host "  Installing cloudbase-init (unattended)..."
+$installArgs = @(
+    '/i', $cbInitMsi,
+    '/qn',
+    '/norestart',
+    'LOGGINGLEVEL=5'
+)
+$proc = Start-Process msiexec.exe -ArgumentList $installArgs -Wait -PassThru
+if ($proc.ExitCode -notin @(0, 3010)) {
+    throw "cloudbase-init installer exited with code $($proc.ExitCode)"
+}
+
+Remove-Item $cbInitMsi -Force -ErrorAction SilentlyContinue
+Write-Host "  cloudbase-init installed." -ForegroundColor Green
+
+# ─── 7. Cleanup temp files / logs ──────────────────────────────────────────
 Write-Step "Cleaning temp files and logs"
 
 $cleanPaths = @(
@@ -110,7 +137,7 @@ wevtutil el | ForEach-Object { wevtutil cl $_ 2>$null }
 
 Write-Host "  Cleanup complete." -ForegroundColor Green
 
-# ─── 7. Quick WinRM smoke test ─────────────────────────────────────────────
+# ─── 8. Quick WinRM smoke test ─────────────────────────────────────────────
 Write-Step "Running WinRM smoke test"
 $result = winrm enumerate winrm/config/listener 2>&1
 if ($LASTEXITCODE -eq 0) {

@@ -5,6 +5,7 @@
        PASS 4 – specialize
        Runs once on the target machine after image is applied.
        Re-enables WinRM + OpenSSH so Ansible can reach the host.
+       Starts cloudbase-init service so it runs on first boot.
        ════════════════════════════════════════════════════════ -->
   <settings pass="specialize">
     <component name="Microsoft-Windows-Deployment"
@@ -52,6 +53,13 @@
           <Path>cmd /c sc config tzautoupdate start=auto &amp;&amp; net start tzautoupdate</Path>
           <Description>Enable automatic timezone update</Description>
         </RunSynchronousCommand>
+        <!-- Start cloudbase-init so it runs on first boot to apply
+             Proxmox cloud-init settings (user, password, network, SSH keys). -->
+        <RunSynchronousCommand wcm:action="add">
+          <Order>8</Order>
+          <Path>cmd /c sc config cloudbase-init start=auto</Path>
+          <Description>Enable cloudbase-init service</Description>
+        </RunSynchronousCommand>
       </RunSynchronous>
     </component>
 
@@ -69,7 +77,9 @@
 
   <!-- ════════════════════════════════════════════════════════
        PASS 7 – oobeSystem
-       Skips all OOBE screens and creates local admin account.
+       Skips all OOBE screens.
+       User accounts, passwords, IP, DNS, and SSH keys are
+       configured per-clone via Proxmox cloud-init (cloudbase-init).
        ════════════════════════════════════════════════════════ -->
   <settings pass="oobeSystem">
     <component name="Microsoft-Windows-International-Core"
@@ -99,45 +109,6 @@
         <SkipMachineOOBE>true</SkipMachineOOBE>
         <SkipUserOOBE>true</SkipUserOOBE>
       </OOBE>
-
-      <!-- ── Local administrator account ── -->
-      <UserAccounts>
-        <LocalAccounts>
-          <LocalAccount wcm:action="add">
-            <Name>admin</Name>
-            <Group>Administrators</Group>
-            <Password>
-              <!-- CHANGE THIS after first boot -->
-              <Value>Password123!</Value>
-              <PlainText>true</PlainText>
-            </Password>
-          </LocalAccount>
-        </LocalAccounts>
-      </UserAccounts>
-
-      <AutoLogon>
-        <Enabled>true</Enabled>
-        <Username>admin</Username>
-        <Password>
-          <Value>Password123!</Value>
-          <PlainText>true</PlainText>
-        </Password>
-        <LogonCount>1</LogonCount>
-      </AutoLogon>
-
-      <!-- Run on first logon — final Ansible readiness -->
-      <FirstLogonCommands>
-        <SynchronousCommand wcm:action="add">
-          <Order>1</Order>
-          <CommandLine>powershell -NoProfile -Command "Enable-PSRemoting -Force -SkipNetworkProfileCheck"</CommandLine>
-          <Description>Enable PS Remoting</Description>
-        </SynchronousCommand>
-        <SynchronousCommand wcm:action="add">
-          <Order>2</Order>
-          <CommandLine>powershell -NoProfile -Command "Set-NetFirewallRule -Name 'WinRM-HTTP-In' -Enabled True -ErrorAction SilentlyContinue; New-NetFirewallRule -Name 'WinRM-HTTP-In' -DisplayName 'WinRM HTTP' -Direction Inbound -Protocol TCP -LocalPort 5985 -Action Allow -Profile Any -ErrorAction SilentlyContinue"</CommandLine>
-          <Description>Ensure WinRM firewall rule</Description>
-        </SynchronousCommand>
-      </FirstLogonCommands>
     </component>
   </settings>
 

@@ -134,6 +134,15 @@ def _build_parser() -> argparse.ArgumentParser:
                      help="VNet name prefix (e.g. purple → purple1, purple2...)")
     lab.add_argument("-f", "--firewall",    type=int, help="Firewall VM ID to attach each VNet to")
 
+    ci = parser.add_argument_group("cloud-init (applied to each clone)")
+    ci.add_argument("--ciuser",       help="Default user account name")
+    ci.add_argument("--cipassword",   help="Default user password")
+    ci.add_argument("--ipconfig",     default="ip=dhcp", dest="ipconfig",
+                    help="IP config for net0 (default: ip=dhcp; e.g. ip=10.0.1.x/24,gw=10.0.1.1)")
+    ci.add_argument("--nameserver",   help="DNS nameserver(s), space-separated (e.g. '8.8.8.8 8.8.4.4')")
+    ci.add_argument("--searchdomain", help="DNS search domain")
+    ci.add_argument("--sshkey",       help="Path to SSH public key file to inject into each clone")
+
     return parser
 
 
@@ -166,6 +175,15 @@ def main() -> None:
     if count < 1:
         print("Error: --count must be at least 1.", file=sys.stderr)
         sys.exit(1)
+
+    # Read SSH public key once if provided
+    sshkeys = None
+    if args.sshkey:
+        try:
+            with open(args.sshkey) as fh:
+                sshkeys = fh.read().strip()
+        except OSError as e:
+            print(f"Warning: could not read SSH key file: {e}", file=sys.stderr)
 
     print(f"\nConnecting to {host} as {user}...")
     proxmox = px.connect(host, user, token_name, token_value)
@@ -214,8 +232,23 @@ def main() -> None:
             print(f"    Setting net0 → {vnet_name}")
             if tmpl_type == "qemu":
                 px.set_net0(proxmox, node, new_id, vnet_name)
+                px.apply_cloudinit_vm(
+                    proxmox, node, new_id,
+                    ciuser=args.ciuser,
+                    cipassword=args.cipassword,
+                    ipconfig0=args.ipconfig,
+                    nameserver=args.nameserver,
+                    searchdomain=args.searchdomain,
+                    sshkeys=sshkeys,
+                )
             else:
                 px.set_ct_net0(proxmox, node, new_id, vnet_name)
+                px.apply_cloudinit_ct(
+                    proxmox, node, new_id,
+                    password=args.cipassword,
+                    nameserver=args.nameserver,
+                    searchdomain=args.searchdomain,
+                )
 
         slot = px.next_free_net_slot(proxmox, fw_node, firewall_id)
         print(f"  Adding net{slot} → {vnet_name} on firewall VM {firewall_id}")

@@ -187,7 +187,7 @@ Copy the contents of `vm-prep/windows/` into the VM, then run the following **as
 .\pre-sysprep.ps1
 ```
 
-This configures WinRM (HTTP listener, basic auth) and PowerShell Remoting for Ansible, opens firewall rules for WinRM ports 5985/5986, installs OpenSSH Server, sets the execution policy to `RemoteSigned`, and cleans temp files and logs.
+This configures WinRM (HTTP listener, basic auth) and PowerShell Remoting for Ansible, opens firewall rules for WinRM ports 5985/5986, installs OpenSSH Server, sets the execution policy to `RemoteSigned`, downloads and installs **cloudbase-init** (required for Proxmox cloud-init support on Windows), and cleans temp files and logs.
 
 **Step 2 — Generalize** (Command Prompt, from the same folder as `unattend.xml`):
 ```cmd
@@ -199,10 +199,7 @@ This runs `sysprep /generalize /oobe /shutdown`. The VM **shuts down automatical
 The `unattend.xml` applied to each clone on first boot will:
 - Re-enable WinRM and OpenSSH.
 - Skip all OOBE screens. Sets timezone to Central (Chicago) as a fallback; auto-detects via location services if available.
-- Create a local administrator account:
-  - **Username**: `admin`
-  - **Password**: `Password123!`
-  - ⚠️ Change this password on first use.
+- Enable the `cloudbase-init` service, which reads the Proxmox cloud-init drive to configure the user account, password, IP, DNS, and SSH keys supplied via `purpleteam build`.
 
 #### Convert to Template
 
