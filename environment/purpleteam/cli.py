@@ -121,18 +121,18 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     conn = parser.add_argument_group("connection (defaults from `purpleteam-setup`)")
-    conn.add_argument("--host",        help="Proxmox API host")
-    conn.add_argument("--user",        help="API user (e.g. root@pam)")
-    conn.add_argument("--token-name",  dest="token_name",  help="API token name")
-    conn.add_argument("--token-value", dest="token_value", help="API token value")
+    conn.add_argument("-H", "--host",        help="Proxmox API host")
+    conn.add_argument("-u", "--user",        help="API user (e.g. root@pam)")
+    conn.add_argument("-n", "--token-name",  dest="token_name",  help="API token name")
+    conn.add_argument("-k", "--token-value", dest="token_value", help="API token value")
 
     lab = parser.add_argument_group("lab configuration")
-    lab.add_argument("--count",       type=int, help="Number of segments to create")
-    lab.add_argument("--templates",             help="Comma-separated template VM IDs to clone")
-    lab.add_argument("--zone",                  help="SDN simple zone ID")
-    lab.add_argument("--vnet-prefix", dest="vnet_prefix",
-                     help="VNet name prefix (e.g. labnet → labnet1, labnet2...)")
-    lab.add_argument("--firewall",    type=int, help="Firewall VM ID to attach each VNet to")
+    lab.add_argument("-c", "--count",       type=int, help="Number of segments to create")
+    lab.add_argument("-t", "--templates",             help="Comma-separated template VM IDs to clone")
+    lab.add_argument("-z", "--zone",                  help="SDN simple zone ID")
+    lab.add_argument("-p", "--vnet-prefix", dest="vnet_prefix",
+                     help="VNet name prefix (e.g. purple → purple1, purple2...)")
+    lab.add_argument("-f", "--firewall",    type=int, help="Firewall VM ID to attach each VNet to")
 
     return parser
 
@@ -175,9 +175,15 @@ def main() -> None:
     all_info = px.resolve_resource_info(proxmox, templates + [firewall_id])
     fw_node  = all_info[firewall_id]["node"]
 
-    # Phase 1: Create all VNets
-    vnet_names = [f"{prefix}{i}" for i in range(1, count + 1)]
-    print(f"\nCreating {count} VNet(s) in zone '{zone}'...")
+    # Phase 1: Create all VNets, continuing from the highest existing suffix
+    existing = px.list_sdn_vnets(proxmox)
+    existing_nums = [
+        int(v[len(prefix):]) for v in existing
+        if v.startswith(prefix) and v[len(prefix):].isdigit()
+    ]
+    start = max(existing_nums, default=0) + 1
+    vnet_names = [f"{prefix}{i}" for i in range(start, start + count)]
+    print(f"\nCreating {count} VNet(s) in zone '{zone}' (starting at {prefix}{start})...")
     for vnet_name in vnet_names:
         print(f"  + {vnet_name}")
         px.create_vnet(proxmox, zone, vnet_name)
