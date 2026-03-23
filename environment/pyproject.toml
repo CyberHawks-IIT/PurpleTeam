@@ -1,0 +1,21 @@
+[project]
+name = "purpleteam"
+version = "0.1.0"
+description = "Proxmox lab segment builder for the CyberHawks purple team seminar series"
+requires-python = ">=3.9"
+dependencies = [
+    "proxmoxer>=2.0.0",
+    "requests>=2.28.0",
+]
+
+[project.scripts]
+purpleteam = "purpleteam.cli:main"
+purpleteam-setup = "purpleteam.cli:setup_main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.backends.legacy:build"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["purpleteam*"]
