@@ -25,7 +25,25 @@ This document walks through the one-time infrastructure setup required before ru
   - [Debian](https://www.debian.org/distrib/netinst) — AMD64 netinst ISO.
   - [Windows 11](https://www.microsoft.com/software-download/windows11) — ISO.
   - [VirtIO drivers for Windows](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso) — required for Windows VMs on Proxmox.
-- The `purpleteam` CLI installed: `pip install ./environment`
+- The `purpleteam` CLI installed (see below).
+
+---
+
+## Installation
+
+Install directly from GitHub using [pipx](https://pipx.pypa.io):
+
+```bash
+pipx install "git+https://github.com/CyberHawks-IIT/PurpleTeam.git#subdirectory=environment"
+```
+
+This installs three commands into an isolated environment: `purpleteam`, `purpleteam-setup`, and `purpleteam-init`.
+
+To upgrade to the latest version:
+
+```bash
+pipx upgrade purpleteam
+```
 
 ---
 
@@ -180,7 +198,7 @@ This runs `sysprep /generalize /oobe /shutdown`. The VM **shuts down automatical
 
 The `unattend.xml` applied to each clone on first boot will:
 - Re-enable WinRM and OpenSSH.
-- Skip all OOBE screens and set timezone to UTC.
+- Skip all OOBE screens. Sets timezone to Central (Chicago) as a fallback; auto-detects via location services if available.
 - Create a local administrator account:
   - **Username**: `admin`
   - **Password**: `Password123!`
