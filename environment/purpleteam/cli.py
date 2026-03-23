@@ -133,6 +133,9 @@ def _build_parser() -> argparse.ArgumentParser:
     lab.add_argument("-p", "--vnet-prefix", dest="vnet_prefix",
                      help="VNet name prefix (e.g. purple → purple1, purple2...)")
     lab.add_argument("-f", "--firewall",    type=int, help="Firewall VM ID to attach each VNet to")
+    lab.add_argument("-i", "--start-id",   dest="start_id", type=int,
+                     help="Starting VMID for clones; increments sequentially and skips taken IDs. "
+                          "Default: Proxmox auto-assign.")
 
     ci = parser.add_argument_group("cloud-init (applied to each clone)")
     ci.add_argument("--ciuser",       help="Default user account name")
@@ -164,6 +167,17 @@ def main() -> None:
     prefix      = _resolve(args, "vnet_prefix", {}, label="VNet name prefix (e.g. labnet)")
     firewall_s  = _resolve(args, "firewall",    {}, label="Firewall VM ID")
 
+    # start_id is optional — prompt only if not given via flag, allow empty for auto-assign
+    start_id = args.start_id
+    if start_id is None:
+        raw = input("  Starting VM ID (Enter for Proxmox auto-assign): ").strip()
+        if raw:
+            try:
+                start_id = int(raw)
+            except ValueError:
+                print("Error: start ID must be an integer.", file=sys.stderr)
+                sys.exit(1)
+
     try:
         count       = int(count_str)
         templates   = _parse_int_list(templates_s)
@@ -193,6 +207,22 @@ def main() -> None:
     all_info = px.resolve_resource_info(proxmox, templates + [firewall_id])
     fw_node  = all_info[firewall_id]["node"]
 
+    # Build a VMID allocator — sequential from start_id (skipping taken IDs),
+    # or Proxmox auto-assign if no start_id was given.
+    if start_id is not None:
+        taken = px.list_all_vmids(proxmox)
+        cursor = [start_id]
+        def allocate_vmid():
+            vid = cursor[0]
+            while vid in taken:
+                vid += 1
+            taken.add(vid)
+            cursor[0] = vid + 1
+            return vid
+    else:
+        def allocate_vmid():
+            return px.next_vmid(proxmox)
+
     # Phase 1: Create all VNets, continuing from the highest existing suffix
     existing = px.list_sdn_vnets(proxmox)
     existing_nums = [
@@ -219,7 +249,7 @@ def main() -> None:
             node       = info["node"]
             tmpl_type  = info["type"]   # 'qemu' or 'lxc'
             tmpl_name  = info["name"]
-            new_id     = px.next_vmid(proxmox)
+            new_id     = allocate_vmid()
             clone_name = f"{vnet_name}-{tmpl_name}"
 
             print(f"  Cloning {tmpl_type.upper()} {tmpl_id} ({tmpl_name}) → {new_id} ({clone_name})...")

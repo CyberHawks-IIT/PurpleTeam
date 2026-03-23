@@ -196,6 +196,11 @@ def add_net(proxmox: ProxmoxAPI, node: str, vmid: int, slot: int, bridge: str) -
 # SDN zone helpers
 # ---------------------------------------------------------------------------
 
+def list_all_vmids(proxmox: ProxmoxAPI) -> set:
+    """Return a set of all VMIDs (VMs and containers) currently in use across the cluster."""
+    return {r["vmid"] for r in proxmox.cluster.resources.get(type="vm")}
+
+
 def list_sdn_zones(proxmox: ProxmoxAPI) -> list:
     """Return a list of existing SDN zone IDs."""
     return [z["zone"] for z in proxmox.cluster.sdn.zones.get()]
