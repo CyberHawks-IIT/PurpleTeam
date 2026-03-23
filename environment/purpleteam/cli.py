@@ -1,5 +1,5 @@
 """
-purpleteam CLI — two installed commands:
+purpleteam CLI — three installed commands:
 
   purpleteam        Spin up N isolated lab segments in Proxmox.
                     Any missing arguments are prompted interactively.
@@ -7,6 +7,9 @@ purpleteam CLI — two installed commands:
 
   purpleteam-setup  Save Proxmox connection defaults to
                     ~/.config/purpleteam/config.json
+
+  purpleteam-init   One-time environment bootstrap: create the SDN simple
+                    zone, admin VNet, and admin Debian LXC container.
 """
 import argparse
 import getpass
@@ -209,3 +212,86 @@ def main() -> None:
         px.add_net(proxmox, fw_node, firewall_id, slot, vnet_name)
 
     print(f"\nDone. {count} segment(s) created successfully.")
+
+
+# ---------------------------------------------------------------------------
+# purpleteam-init
+# ---------------------------------------------------------------------------
+
+def init_main() -> None:
+    """
+    Entry point for `purpleteam-init`.
+    One-time bootstrap: creates the SDN simple zone, admin VNet, and an
+    admin Debian LXC container — automating sections 2 and 5 of the README.
+    """
+    cfg = cfg_store.load()
+
+    print("Bootstrap Proxmox lab environment.")
+    print("Connection defaults will be loaded from config if available.\n")
+
+    host        = _resolve(_Namespace(), "host",        cfg, "PROXMOX_HOST",        "Proxmox host")
+    user        = _resolve(_Namespace(), "user",        cfg, "PROXMOX_USER",        "API user")
+    token_name  = _resolve(_Namespace(), "token_name",  cfg, "PROXMOX_TOKEN_NAME",  "API token name")
+    token_value = _resolve(_Namespace(), "token_value", cfg, "PROXMOX_TOKEN_VALUE", "API token value", secret=True)
+    node        = _resolve(_Namespace(), "node",        cfg, "PROXMOX_NODE",        "Node name")
+
+    zone         = _prompt("SDN zone ID to create (e.g. labzone)")
+    admin_vnet   = _prompt("Admin VNet name",              default="adminnet")
+    admin_host   = _prompt("Admin container hostname",     default="admin")
+    storage      = _prompt("Storage ID for CT template",   default="local")
+
+    print(f"\nConnecting to {host} as {user}...")
+    proxmox = px.connect(host, user, token_name, token_value)
+
+    # SDN zone
+    existing_zones = px.list_sdn_zones(proxmox)
+    if zone in existing_zones:
+        print(f"  Zone '{zone}' already exists — skipping.")
+    else:
+        print(f"  Creating SDN simple zone '{zone}'...")
+        px.create_sdn_zone(proxmox, zone)
+
+    # Admin VNet
+    existing_vnets = px.list_sdn_vnets(proxmox)
+    if admin_vnet in existing_vnets:
+        print(f"  VNet '{admin_vnet}' already exists — skipping.")
+    else:
+        print(f"  Creating VNet '{admin_vnet}' in zone '{zone}'...")
+        px.create_vnet(proxmox, zone, admin_vnet)
+
+    # Apply SDN
+    print("  Applying SDN configuration...")
+    px.apply_sdn(proxmox)
+
+    # Debian LXC template
+    print(f"\nLooking for Debian standard CT template in '{storage}'...")
+    result = px.get_debian_template(proxmox, node, storage)
+
+    if isinstance(result, tuple):
+        # Not yet downloaded — result is (template_filename, storage)
+        template_file, stor = result
+        print(f"  Downloading {template_file}...")
+        upid = px.download_ct_template(proxmox, node, stor, template_file)
+        px.wait_for_task(proxmox, node, upid)
+        ostemplate = f"{stor}:vztmpl/{template_file}"
+    else:
+        ostemplate = result
+        print(f"  Using existing template: {ostemplate}")
+
+    # Admin LXC container
+    vmid = px.next_vmid(proxmox)
+    print(f"\nCreating admin LXC container '{admin_host}' (VMID {vmid}) on '{admin_vnet}'...")
+    upid = px.create_lxc(proxmox, node, vmid, admin_host, ostemplate, storage, admin_vnet)
+    print(f"  Waiting for container creation...")
+    px.wait_for_task(proxmox, node, upid)
+
+    print(f"\nDone. Environment bootstrapped:")
+    print(f"  SDN zone:        {zone}")
+    print(f"  Admin VNet:      {admin_vnet}")
+    print(f"  Admin container: {admin_host} (VMID {vmid})")
+    print(f"\nNext step: create the pfSense firewall VM (see environment/README.md).")
+
+
+class _Namespace:
+    """Minimal stand-in for argparse.Namespace when no CLI args are parsed."""
+    pass

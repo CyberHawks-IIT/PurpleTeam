@@ -95,11 +95,11 @@
       <UserAccounts>
         <LocalAccounts>
           <LocalAccount wcm:action="add">
-            <Name>ansible</Name>
+            <Name>admin</Name>
             <Group>Administrators</Group>
             <Password>
-              <!-- CHANGE THIS — or rotate immediately via Ansible -->
-              <Value>AnsibleBootstrap1!</Value>
+              <!-- CHANGE THIS after first boot -->
+              <Value>Password123!</Value>
               <PlainText>true</PlainText>
             </Password>
           </LocalAccount>
@@ -108,9 +108,9 @@
 
       <AutoLogon>
         <Enabled>true</Enabled>
-        <Username>ansible</Username>
+        <Username>admin</Username>
         <Password>
-          <Value>AnsibleBootstrap1!</Value>
+          <Value>Password123!</Value>
           <PlainText>true</PlainText>
         </Password>
         <LogonCount>1</LogonCount>

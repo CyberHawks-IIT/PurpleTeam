@@ -96,3 +96,84 @@ def next_free_net_slot(proxmox: ProxmoxAPI, node: str, vmid: int) -> int:
 def add_net(proxmox: ProxmoxAPI, node: str, vmid: int, slot: int, bridge: str) -> None:
     """Add a network interface at the given slot index to a VM."""
     proxmox.nodes(node).qemu(vmid).config.put(**{f"net{slot}": f"virtio,bridge={bridge}"})
+
+
+# ---------------------------------------------------------------------------
+# SDN zone helpers
+# ---------------------------------------------------------------------------
+
+def list_sdn_zones(proxmox: ProxmoxAPI) -> list:
+    """Return a list of existing SDN zone IDs."""
+    return [z["zone"] for z in proxmox.cluster.sdn.zones.get()]
+
+
+def create_sdn_zone(proxmox: ProxmoxAPI, zone_id: str) -> None:
+    """Create an SDN simple zone."""
+    proxmox.cluster.sdn.zones.post(zone=zone_id, type="simple")
+
+
+def list_sdn_vnets(proxmox: ProxmoxAPI) -> list:
+    """Return a list of existing SDN VNet names."""
+    return [v["vnet"] for v in proxmox.cluster.sdn.vnets.get()]
+
+
+# ---------------------------------------------------------------------------
+# LXC container helpers
+# ---------------------------------------------------------------------------
+
+def get_debian_template(proxmox: ProxmoxAPI, node: str, storage: str) -> str:
+    """
+    Return the ostemplate string for the latest Debian standard CT template,
+    downloading it from the appliance repository if not already stored.
+    Returns a string like 'local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst'.
+    """
+    # Check already-downloaded templates
+    stored = proxmox.nodes(node).storage(storage).content.get(content="vztmpl")
+    debian_stored = [
+        s for s in stored
+        if "debian" in s["volid"].lower() and "standard" in s["volid"].lower()
+    ]
+    if debian_stored:
+        latest = sorted(debian_stored, key=lambda s: s.get("ctime", 0), reverse=True)[0]
+        return latest["volid"]
+
+    # Download latest from the appliance repo
+    available = proxmox.nodes(node).aplinfo.get()
+    candidates = [
+        t for t in available
+        if "debian" in t.get("package", "").lower() and "standard" in t.get("package", "").lower()
+    ]
+    if not candidates:
+        raise RuntimeError(
+            "No Debian standard template found in the appliance repository. "
+            "Run 'pveam update' on the node first."
+        )
+    latest = sorted(candidates, key=lambda t: t.get("version", ""), reverse=True)[0]
+    return latest["template"], storage  # caller must download
+
+
+def download_ct_template(proxmox: ProxmoxAPI, node: str, storage: str, template: str) -> str:
+    """Download a CT template to storage. Returns the UPID for task polling."""
+    return proxmox.nodes(node).aplinfo.post(storage=storage, template=template)
+
+
+def create_lxc(
+    proxmox: ProxmoxAPI,
+    node: str,
+    vmid: int,
+    hostname: str,
+    ostemplate: str,
+    storage: str,
+    bridge: str,
+) -> str:
+    """Create an unprivileged Debian LXC container and return the task UPID."""
+    return proxmox.nodes(node).lxc.post(
+        vmid=vmid,
+        hostname=hostname,
+        ostemplate=ostemplate,
+        storage=storage,
+        memory=512,
+        net0=f"name=eth0,bridge={bridge},ip=dhcp",
+        unprivileged=1,
+        start=1,
+    )
