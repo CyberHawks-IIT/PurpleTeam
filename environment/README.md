@@ -37,7 +37,7 @@ Run `purpleteam-init` to create the SDN simple zone, admin VNet, and admin Debia
 purpleteam-init
 ```
 
-You will be prompted for the zone ID (e.g. `labzone`), admin VNet name (default: `adminnet`), admin container hostname (default: `admin`), and the Proxmox storage ID to use for the container template. The script will:
+You will be prompted for the zone ID (default: `purpleteam`), admin VNet name (default: `purpleteam`), admin container hostname (default: `admin`), and the Proxmox storage ID to use for the container template. The script will:
 
 1. Create the SDN simple zone.
 2. Create the admin VNet inside it.
@@ -50,13 +50,13 @@ If you prefer to do this manually, see the sections below.
 ### Manual: Create the SDN Simple Zone
 
 1. **Datacenter → SDN → Zones → Add → Simple**
-2. Set **ID** to your zone name (e.g. `labzone`). This is the value for `--zone` when running `purpleteam build`.
+2. Set **ID** to your zone name (e.g. `purpleteam`). This is the value for `--zone` when running `purpleteam build`.
 3. Click **Add**.
 
 ### Manual: Create the Admin VNet
 
 1. **Datacenter → SDN → VNets → Add**
-2. Set **Name** to `adminnet` and **Zone** to your zone.
+2. Set **Name** to `purpleteam` and **Zone** to your zone.
 3. Click **Add**, then **Apply**.
 
 ---
@@ -71,7 +71,7 @@ pfSense acts as the router for every lab segment. `purpleteam build` automatical
 2. Use the pfSense CE ISO. Set the OS type to **Other**.
 3. Add two network interfaces:
    - **net0**: Bridge `vmbr0` — this becomes the **WAN** interface.
-   - **net1**: Bridge `adminnet` — this becomes the **LAN (admin)** interface.
+   - **net1**: Bridge `purpleteam` — this becomes the **LAN (admin)** interface.
 4. Start the VM and complete the pfSense installer (accept defaults, install to disk).
 
 ### Initial Interface Assignment
@@ -100,7 +100,7 @@ Record the pfSense VMID from the Proxmox sidebar. This is the `--firewall` value
 
 ## 3. Admin Host (Debian LXC)
 
-If you ran `purpleteam-init`, the admin container was already created. Otherwise, create a Debian LXC container manually and attach it to `adminnet` with DHCP (or a static IP in your LAN subnet, e.g. `10.0.0.10/24` with gateway `10.0.0.1`).
+If you ran `purpleteam-init`, the admin container was already created. Otherwise, create a Debian LXC container manually and attach it to `purpleteam` with DHCP (or a static IP in your LAN subnet, e.g. `10.0.0.10/24` with gateway `10.0.0.1`).
 
 Once running:
 
@@ -199,14 +199,14 @@ Saves Proxmox connection defaults (host, user, token, node) to `~/.config/purple
 purpleteam build \
   --count 3 \
   --templates 101,102,103 \
-  --zone labzone \
+  --zone purpleteam \
   --vnet-prefix labnet \
   --firewall 100
 ```
 
 Replace values with your actual template VMIDs and pfSense VMID. This will:
 
-1. Create VNets `labnet1`, `labnet2`, `labnet3` in `labzone`.
+1. Create VNets `labnet1`, `labnet2`, `labnet3` in `purpleteam`.
 2. Apply SDN configuration once.
 3. For each VNet: clone all specified templates and set `net0` on each clone to the VNet bridge.
 4. Add a new NIC to the pfSense VM for each VNet.
