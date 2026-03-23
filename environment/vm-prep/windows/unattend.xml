@@ -45,6 +45,13 @@
           <Path>powershell -NoProfile -Command "Set-ExecutionPolicy RemoteSigned -Force -Scope LocalMachine"</Path>
           <Description>Set execution policy</Description>
         </RunSynchronousCommand>
+        <!-- Enable automatic timezone detection. Falls back to the TimeZone
+             value below if location services are unavailable (common in VMs). -->
+        <RunSynchronousCommand wcm:action="add">
+          <Order>7</Order>
+          <Path>cmd /c sc config tzautoupdate start=auto &amp;&amp; net start tzautoupdate</Path>
+          <Description>Enable automatic timezone update</Description>
+        </RunSynchronousCommand>
       </RunSynchronous>
     </component>
 
@@ -54,7 +61,9 @@
                language="neutral"
                versionScope="nonSxS">
       <ComputerName>*</ComputerName>
-      <TimeZone>UTC</TimeZone>
+      <!-- Central Standard Time (Chicago) — tzautoupdate will override this
+           automatically if Windows location services are available. -->
+      <TimeZone>Central Standard Time</TimeZone>
     </component>
   </settings>
 
