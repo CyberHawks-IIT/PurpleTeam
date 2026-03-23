@@ -170,14 +170,10 @@ def main() -> None:
     print(f"\nConnecting to {host} as {user}...")
     proxmox = px.connect(host, user, token_name, token_value)
 
-    # Resolve nodes and names for all VMs up front
-    print("Resolving VM locations...")
-    template_nodes = {vmid: px.resolve_node(proxmox, vmid) for vmid in templates}
-    fw_node        = px.resolve_node(proxmox, firewall_id)
-    template_names = {
-        vmid: px.resolve_vm_name(proxmox, node, vmid)
-        for vmid, node in template_nodes.items()
-    }
+    # Resolve node, type (qemu/lxc), and name for all templates + firewall
+    print("Resolving VM/container locations...")
+    all_info = px.resolve_resource_info(proxmox, templates + [firewall_id])
+    fw_node  = all_info[firewall_id]["node"]
 
     # Phase 1: Create all VNets
     vnet_names = [f"{prefix}{i}" for i in range(1, count + 1)]
@@ -190,22 +186,30 @@ def main() -> None:
     print("Applying SDN configuration...")
     px.apply_sdn(proxmox)
 
-    # Phase 3: Clone VMs and wire networks
+    # Phase 3: Clone VMs/containers and wire networks
     for i, vnet_name in enumerate(vnet_names, start=1):
         print(f"\n[Segment {i}/{count}]  VNet: {vnet_name}")
 
         for tmpl_id in templates:
-            node      = template_nodes[tmpl_id]
-            tmpl_name = template_names[tmpl_id]
-            new_id    = px.next_vmid(proxmox)
+            info       = all_info[tmpl_id]
+            node       = info["node"]
+            tmpl_type  = info["type"]   # 'qemu' or 'lxc'
+            tmpl_name  = info["name"]
+            new_id     = px.next_vmid(proxmox)
             clone_name = f"{vnet_name}-{tmpl_name}"
 
-            print(f"  Cloning {tmpl_id} ({tmpl_name}) → {new_id} ({clone_name})...")
-            upid = px.clone_vm(proxmox, node, tmpl_id, new_id, clone_name)
+            print(f"  Cloning {tmpl_type.upper()} {tmpl_id} ({tmpl_name}) → {new_id} ({clone_name})...")
+            if tmpl_type == "qemu":
+                upid = px.clone_vm(proxmox, node, tmpl_id, new_id, clone_name)
+            else:
+                upid = px.clone_ct(proxmox, node, tmpl_id, new_id, clone_name)
             print(f"    Waiting for task to complete...")
             px.wait_for_task(proxmox, node, upid)
             print(f"    Setting net0 → {vnet_name}")
-            px.set_net0(proxmox, node, new_id, vnet_name)
+            if tmpl_type == "qemu":
+                px.set_net0(proxmox, node, new_id, vnet_name)
+            else:
+                px.set_ct_net0(proxmox, node, new_id, vnet_name)
 
         slot = px.next_free_net_slot(proxmox, fw_node, firewall_id)
         print(f"  Adding net{slot} → {vnet_name} on firewall VM {firewall_id}")

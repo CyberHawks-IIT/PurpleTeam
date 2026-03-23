@@ -120,7 +120,7 @@ Templates are created once. `purpleteam build` performs full clones into each la
 
 > **Note:** Do not assign a persistent network bridge to templates. `purpleteam build` overwrites `net0` on every clone with the appropriate lab VNet bridge at creation time.
 
-> **LXC note:** `purpleteam build` operates on QEMU VMs only. If you want Debian included in cloned lab segments, create it as a VM rather than an LXC container. LXC is fine for the admin host (section 3) since it is not cloned.
+> **LXC note:** `purpleteam build` supports both QEMU VMs and LXC containers. Debian can be set up as either — as an LXC container for a leaner template, or as a VM if you prefer consistency. The script auto-detects the type from Proxmox and uses the correct clone API for each.
 
 ---
 
@@ -134,10 +134,19 @@ Templates are created once. `purpleteam build` performs full clones into each la
 
 ---
 
-### Debian Linux VM
+### Debian Linux
 
+Debian can be set up as an **LXC container** (lighter, faster to clone) or a **VM** (consistent with the other templates). Both work with `purpleteam build`.
+
+**As an LXC container:**
+1. Download the Debian CT template: **node → local storage → CT Templates → Templates → search "debian"**.
+2. Create a container from it with default settings.
+3. Start it, verify SSH works, shut it down.
+4. Right-click → **Convert to Template**. Record the VMID.
+
+**As a VM:**
 1. Create a VM and boot from the Debian netinst ISO.
-2. Complete a minimal install. Enable the SSH server during setup.
+2. Complete a minimal install with SSH server enabled.
 3. Shut down the VM.
 4. Right-click → **Convert to Template**. Record the VMID.
 

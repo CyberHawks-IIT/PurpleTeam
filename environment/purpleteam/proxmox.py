@@ -19,7 +19,7 @@ def connect(host: str, user: str, token_name: str, token_value: str) -> ProxmoxA
 
 
 def resolve_node(proxmox: ProxmoxAPI, vmid: int) -> str:
-    """Return the node name that hosts the given VMID."""
+    """Return the node name that hosts the given VMID (VM or container)."""
     resources = proxmox.cluster.resources.get(type="vm")
     for r in resources:
         if r.get("vmid") == vmid:
@@ -27,8 +27,29 @@ def resolve_node(proxmox: ProxmoxAPI, vmid: int) -> str:
     raise ValueError(f"VMID {vmid} not found in cluster")
 
 
+def resolve_resource_info(proxmox: ProxmoxAPI, vmids: list) -> dict:
+    """
+    Return a dict mapping vmid -> {node, type, name} for each requested VMID.
+    A single cluster API call covers both QEMU VMs and LXC containers.
+    'type' is either 'qemu' or 'lxc'.
+    """
+    resources = proxmox.cluster.resources.get(type="vm")
+    lookup = {r["vmid"]: r for r in resources}
+    result = {}
+    for vmid in vmids:
+        r = lookup.get(vmid)
+        if r is None:
+            raise ValueError(f"VMID {vmid} not found in cluster")
+        result[vmid] = {
+            "node": r["node"],
+            "type": r["type"],  # 'qemu' or 'lxc'
+            "name": r.get("name", f"vm{vmid}"),
+        }
+    return result
+
+
 def resolve_vm_name(proxmox: ProxmoxAPI, node: str, vmid: int) -> str:
-    """Return the name of a VM, falling back to 'vm{vmid}' if unset."""
+    """Return the name of a QEMU VM, falling back to 'vm{vmid}' if unset."""
     cfg = proxmox.nodes(node).qemu(vmid).config.get()
     return cfg.get("name", f"vm{vmid}")
 
@@ -80,8 +101,28 @@ def wait_for_task(proxmox: ProxmoxAPI, node: str, upid: str, poll_interval: floa
 
 
 def set_net0(proxmox: ProxmoxAPI, node: str, vmid: int, bridge: str) -> None:
-    """Replace net0 on a VM to use the given bridge (VNet name)."""
+    """Replace net0 on a QEMU VM to use the given bridge (VNet name)."""
     proxmox.nodes(node).qemu(vmid).config.put(net0=f"virtio,bridge={bridge}")
+
+
+def clone_ct(
+    proxmox: ProxmoxAPI,
+    node: str,
+    template_vmid: int,
+    new_vmid: int,
+    new_hostname: str,
+) -> str:
+    """Full-clone an LXC container and return the task UPID for polling."""
+    return proxmox.nodes(node).lxc(template_vmid).clone.post(
+        newid=new_vmid,
+        hostname=new_hostname,
+        full=1,
+    )
+
+
+def set_ct_net0(proxmox: ProxmoxAPI, node: str, vmid: int, bridge: str) -> None:
+    """Replace net0 on an LXC container to use the given bridge (VNet name)."""
+    proxmox.nodes(node).lxc(vmid).config.put(net0=f"name=eth0,bridge={bridge},ip=dhcp")
 
 
 def next_free_net_slot(proxmox: ProxmoxAPI, node: str, vmid: int) -> int:
