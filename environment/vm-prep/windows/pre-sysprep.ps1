@@ -82,16 +82,16 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Force -Scope LocalMachine
 Write-Host "  Execution policy set." -ForegroundColor Green
 
 # ─── 5. Install OpenSSH Server (optional – enables Ansible SSH transport) ──
-Write-Step "Installing OpenSSH Server (optional SSH transport for Ansible)"
-$sshCapability = Get-WindowsCapability -Online | Where-Object Name -like 'OpenSSH.Server*'
-if ($sshCapability.State -ne 'Installed') {
-    Add-WindowsCapability -Online -Name $sshCapability.Name | Out-Null
-    Set-Service -Name sshd -StartupType Automatic
-    Start-Service sshd
-    Write-Host "  OpenSSH Server installed and started." -ForegroundColor Green
-} else {
-    Write-Host "  OpenSSH Server already installed." -ForegroundColor Yellow
-}
+#Write-Step "Installing OpenSSH Server (optional SSH transport for Ansible)"
+#$sshCapability = Get-WindowsCapability -Online | Where-Object Name -like 'OpenSSH.Server*'
+#if ($sshCapability.State -ne 'Installed') {
+#    Add-WindowsCapability -Online -Name $sshCapability.Name | Out-Null
+#    Set-Service -Name sshd -StartupType Automatic
+#    Start-Service sshd
+#    Write-Host "  OpenSSH Server installed and started." -ForegroundColor Green
+#} else {
+#    Write-Host "  OpenSSH Server already installed." -ForegroundColor Yellow
+#}
 
 # ─── 6. Install cloudbase-init ─────────────────────────────────────────────
 Write-Step "Installing cloudbase-init (Proxmox cloud-init support for Windows)"
