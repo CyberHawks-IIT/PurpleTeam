@@ -235,8 +235,8 @@ def init_main() -> None:
     token_value = _resolve(_Namespace(), "token_value", cfg, "PROXMOX_TOKEN_VALUE", "API token value", secret=True)
     node        = _resolve(_Namespace(), "node",        cfg, "PROXMOX_NODE",        "Node name")
 
-    zone         = _prompt("SDN zone ID to create",       default="purpleteam")
-    admin_vnet   = _prompt("Admin VNet name",              default="purpleteam")
+    zone         = _prompt("SDN zone ID to create",       default="purple")
+    admin_vnet   = _prompt("Admin VNet name",              default="purple")
     admin_host   = _prompt("Admin container hostname",     default="admin")
     storage      = _prompt("Storage ID for CT template",   default="local")
 
