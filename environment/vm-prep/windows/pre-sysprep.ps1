@@ -143,7 +143,7 @@ $result = winrm enumerate winrm/config/listener 2>&1
 if ($LASTEXITCODE -eq 0) {
     Write-Host "  WinRM listener is responding." -ForegroundColor Green
 } else {
-    Write-Warning "  WinRM listener test returned an error – review manually."
+    Write-Warning "  WinRM listener test returned an error -- review manually."
 }
 
 Write-Host "`n========================================" -ForegroundColor Cyan
