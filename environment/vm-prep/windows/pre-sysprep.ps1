@@ -100,7 +100,7 @@ $cbInitMsi  = "$env:TEMP\CloudbaseInitSetup.msi"
 $cbInitUrl  = "https://cloudbase.it/downloads/CloudbaseInitSetup_Stable_x64.msi"
 
 Write-Host "  Downloading cloudbase-init..."
-Invoke-WebRequest -Uri $cbInitUrl -OutFile $cbInitMsi -UseBasicParsing
+(New-Object System.Net.WebClient).DownloadFile($cbInitUrl, $cbInitMsi)
 
 Write-Host "  Installing cloudbase-init (unattended)..."
 $installArgs = @(
